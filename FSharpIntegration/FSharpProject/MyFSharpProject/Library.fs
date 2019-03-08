@@ -6,7 +6,7 @@ type Player() =
     
     member this.Start() = Debug.Log this.X
     
-    member this.X = "It actually works :DD"
+    member this.X = "F# in Unity"
 
 
 type Friend() =
@@ -14,5 +14,5 @@ type Friend() =
     
     member this.Start() = Debug.Log this.X
         
-    member this.X = "F# right here"
+    member this.X = "F# working in Unity"
     
