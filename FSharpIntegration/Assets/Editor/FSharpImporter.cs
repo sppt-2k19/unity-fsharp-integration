@@ -25,15 +25,15 @@ public class FSharpImporter : AssetPostprocessor
 	private static readonly Regex MatchReferences =
 		new Regex("<Reference Include=\"([^\"]+)\">\\s*<HintPath>([^<]+)<\\/HintPath>\\s*<\\/Reference>", RegexOptions.Compiled);
 
-	static async Task OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
+	static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
 	{
 		if (!_autoRecompileEnabled) return;
 		if (DEBUG) Debug.Log ("Starting automatic recompilation");
-		await InvokeCompiler();
+		InvokeCompiler();
 	}
 
 	[MenuItem(MenuItemRecompile)]
-	static async Task InvokeCompiler()
+	static async void InvokeCompiler()
 	{
 		try
 		{
@@ -45,7 +45,7 @@ public class FSharpImporter : AssetPostprocessor
 			foreach (var project in fsProjects)
 			{
 				EnsureReferences(project, references);
-				await Compile(dir, project);
+				Compile(dir, project);
 			}
 		} catch (Exception e) {
 			Debug.LogError(e);
@@ -75,6 +75,8 @@ public class FSharpImporter : AssetPostprocessor
 			var started = DateTime.UtcNow;
 			var unityCsProjects = Directory.EnumerateFiles(dir, "*.csproj", SearchOption.TopDirectoryOnly);
 
+			if (!unityCsProjects.Any()) throw new FileNotFoundException("No Unity projects to copy references from found. Please add a C# script, open it, and try again");
+			
 			var allReferences = new HashSet<Reference>();
 			foreach (var project in unityCsProjects)
 			{
@@ -109,6 +111,7 @@ public class FSharpImporter : AssetPostprocessor
 	{
 		var started = DateTime.UtcNow;
 		var fsProjectContent = File.ReadAllText(project);
+		
 		if (fsProjectContent.Contains("UnityEngine")) return;
 
 		var references = lazyReferenceContainer.Value;
@@ -136,60 +139,58 @@ public class FSharpImporter : AssetPostprocessor
 	}
 
 	
-	private static Task Compile(string unityRoot, string project)
+	private static void Compile(string unityRoot, string project)
 	{
-		return Task.Run(() =>
-		{
-			var projectDir = Path.GetDirectoryName(project);
-			var projectBuildDir = Path.Combine(projectDir, "build");
-			
-			Directory.CreateDirectory(projectBuildDir);
-			var unityAssetsPath = Path.Combine(unityRoot, "Assets");
-			var projectDllFilename = Path.GetFileNameWithoutExtension(project) + ".dll";
-			var projectDllBuildPath = Path.Combine(projectBuildDir, projectDllFilename);
-			var projectDllAssetPath = Path.Combine(unityAssetsPath, projectDllFilename);
-			var fsCoreDll = "FSharp.Core.dll";
+		var projectDir = Path.GetDirectoryName(project);
+		var projectBuildDir = Path.Combine(projectDir, "build");
+		
+		Directory.CreateDirectory(projectBuildDir);
+		var unityAssetsPath = Path.Combine(unityRoot, "Assets");
+		var projectDllFilename = Path.GetFileNameWithoutExtension(project) + ".dll";
+		var projectDllBuildPath = Path.Combine(projectBuildDir, projectDllFilename);
+		var projectDllAssetPath = Path.Combine(unityAssetsPath, projectDllFilename);
+		var fsCoreDll = "FSharp.Core.dll";
 
-			// Check if a recompilation is needed
-			var fsFiles = Directory.EnumerateFiles(projectDir, "*.fs", SearchOption.AllDirectories);	
-			var lastProjectWriteTimeUtc = File.GetLastWriteTimeUtc(projectDllAssetPath);
-			var filesChanged = fsFiles.Any(file =>
-				!file.EndsWith("AssemblyInfo.fs") && File.GetLastWriteTimeUtc(file) > lastProjectWriteTimeUtc);
-			
-			if (!File.Exists(projectDllAssetPath) || filesChanged)
+		// Check if a recompilation is needed
+		var fsFiles = Directory.EnumerateFiles(projectDir, "*.fs", SearchOption.AllDirectories);	
+		var lastProjectWriteTimeUtc = File.GetLastWriteTimeUtc(projectDllAssetPath);
+		var filesChanged = fsFiles.Any(file =>
+			!file.EndsWith("AssemblyInfo.fs") && File.GetLastWriteTimeUtc(file) > lastProjectWriteTimeUtc);
+		
+		if (!File.Exists(projectDllAssetPath) || filesChanged)
+		{
+			var started = DateTime.UtcNow;
+			File.Delete(projectDllBuildPath);
+			if (_useDotnet)
 			{
-				var started = DateTime.UtcNow;
-				File.Delete(projectDllBuildPath);
-				if (_useDotnet)
-				{
-					if (DEBUG) Debug.Log($"Compiling '{Path.GetFileNameWithoutExtension(project)}' using dotnet");
-					var cmd =
-						$"build {project} --no-dependencies --no-restore --output {projectBuildDir}";
-					Process.Start("dotnet", cmd)?.WaitForExit();
-				}
-				else
-				{
-					if (DEBUG) Debug.Log($"Compiling '{Path.GetFileNameWithoutExtension(project)}' using msbuild");
-					var cmd = $"{projectDir} -p:OutputPath={projectBuildDir} -verbosity:quiet -maxcpucount";
-					Process.Start("msbuild", cmd)?.WaitForExit();
-				}
-				if (DEBUG) Debug.Log($"Compilation of '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
-				
-				// Copy needed dll .files
-				started = DateTime.UtcNow;
-				File.Copy(projectDllBuildPath,projectDllAssetPath, true);
-				
-				if (!File.Exists(Path.Combine(unityAssetsPath, fsCoreDll)))
-				{
-					File.Copy(Path.Combine(projectBuildDir, fsCoreDll), Path.Combine(unityAssetsPath, fsCoreDll));
-				}
-				
-				if (DEBUG) Debug.Log($"Copying files from '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
+				if (DEBUG) Debug.Log($"Compiling '{Path.GetFileNameWithoutExtension(project)}' using dotnet");
+				var cmd =
+					$"build \"{project}\" --no-dependencies --no-restore --output \"{projectBuildDir}\"";
+				Process.Start("dotnet", cmd)?.WaitForExit();
+				Debug.Log("dotnet " + cmd);
 			}
 			else
 			{
-				Debug.Log($"The F# project '{Path.GetFileNameWithoutExtension(project)}' is already up-to-date");
+				if (DEBUG) Debug.Log($"Compiling '{Path.GetFileNameWithoutExtension(project)}' using msbuild");
+				var cmd = $"\"{projectDir}\" -p:OutputPath=\"{projectBuildDir}\" -verbosity:quiet -maxcpucount";
+				Process.Start("msbuild", cmd)?.WaitForExit();
 			}
-		});
+			if (DEBUG) Debug.Log($"Compilation of '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
+			
+			// Copy needed dll .files
+			started = DateTime.UtcNow;
+			File.Copy(projectDllBuildPath,projectDllAssetPath, true);
+			
+			if (!File.Exists(Path.Combine(unityAssetsPath, fsCoreDll)))
+			{
+				File.Copy(Path.Combine(projectBuildDir, fsCoreDll), Path.Combine(unityAssetsPath, fsCoreDll));
+			}
+			
+			if (DEBUG) Debug.Log($"Copying files from '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
+		}
+		else
+		{
+			Debug.Log($"The F# project '{Path.GetFileNameWithoutExtension(project)}' is already up-to-date");
+		}
 	}
 }
