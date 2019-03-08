@@ -20,10 +20,15 @@ public class FSharpImporter : AssetPostprocessor
 	
 	private static bool _autoRecompileEnabled = EditorPrefs.GetBool(MenuItemAutoCompile);
 	private static bool _useDotnet = EditorPrefs.GetBool(MenuItemUseDotnet);
-
 	private static readonly XNamespace Xmlns = "http://schemas.microsoft.com/developer/msbuild/2003";
 	private static readonly Regex MatchReferences =
 		new Regex("<Reference Include=\"([^\"]+)\">\\s*<HintPath>([^<]+)<\\/HintPath>\\s*<\\/Reference>", RegexOptions.Compiled);
+
+	public FSharpImporter()
+	{
+		Menu.SetChecked(MenuItemAutoCompile, EditorPrefs.GetBool(MenuItemAutoCompile));
+		Menu.SetChecked(MenuItemUseDotnet, EditorPrefs.GetBool(MenuItemUseDotnet));
+	}
 
 	static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
 	{
