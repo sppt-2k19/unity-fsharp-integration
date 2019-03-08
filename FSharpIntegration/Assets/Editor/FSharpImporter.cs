@@ -154,13 +154,11 @@ public class FSharpImporter : AssetPostprocessor
 		// Check if a recompilation is needed
 		var fsFiles = Directory.EnumerateFiles(projectDir, "*.fs", SearchOption.AllDirectories);	
 		var lastProjectWriteTimeUtc = File.GetLastWriteTimeUtc(projectDllAssetPath);
-		var filesChanged = fsFiles.Any(file =>
-			!file.EndsWith("AssemblyInfo.fs") && File.GetLastWriteTimeUtc(file) > lastProjectWriteTimeUtc);
+		var filesChanged = fsFiles.Any(file => File.GetLastWriteTimeUtc(file) > lastProjectWriteTimeUtc);
 		
 		if (!File.Exists(projectDllAssetPath) || filesChanged)
 		{
 			var started = DateTime.UtcNow;
-			File.Delete(projectDllBuildPath);
 			if (_useDotnet)
 			{
 				if (DEBUG) Debug.Log($"Compiling '{Path.GetFileNameWithoutExtension(project)}' using dotnet");
