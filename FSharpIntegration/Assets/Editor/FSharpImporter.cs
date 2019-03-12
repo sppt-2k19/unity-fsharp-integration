@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Xml.Linq;
@@ -228,7 +229,7 @@ public class FSharpImporter : AssetPostprocessor
 		if (!File.Exists(projectDllAssetPath) || filesChanged)
 		{
 			var started = DateTime.UtcNow;
-			var success = false;
+			var success = (false, "");
 			if (_useDotnet)
 			{
 				if (_isDebug) Debug.Log($"Compiling '{Path.GetFileNameWithoutExtension(project)}' using dotnet");
@@ -240,9 +241,10 @@ public class FSharpImporter : AssetPostprocessor
 				success = ExecuteCmd("msbuild", $"\"{projectDir}\" -p:OutputPath=\"{projectBuildDir}\" -verbosity:quiet -maxcpucount");
 			}
 
-			if (!success)
+			if (!success.Item1)
 			{
-				Debug.Log($"Compilation using {(_useDotnet ? "dotnet" : "msbuild")} failed!");
+				Debug.LogError($"Compilation using {(_useDotnet ? "dotnet" : "msbuild")} failed!");
+				Debug.LogError(success.Item2);
 				return;
 			}
 			
@@ -283,14 +285,17 @@ public class FSharpImporter : AssetPostprocessor
 		}
 	}
 
-	private static bool ExecuteCmd(string cmd, string args)
+	private static (bool, string) ExecuteCmd(string cmd, string args)
 	{
+		var outputBuilder = new StringBuilder();
 		var proc = Process.Start(new ProcessStartInfo(cmd)
 		{
 			WindowStyle = ProcessWindowStyle.Hidden, 
 			Arguments = args
 		});
+		proc.OutputDataReceived += (s, e) => outputBuilder.AppendLine(e.Data);
+		proc.ErrorDataReceived += (s, e) => outputBuilder.AppendLine(e.Data);
 		proc?.WaitForExit();
-		return proc.ExitCode == 0;
+		return (proc.ExitCode == 0, outputBuilder.ToString());
 	}
 }
