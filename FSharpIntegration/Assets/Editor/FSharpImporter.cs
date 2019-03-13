@@ -13,15 +13,15 @@ using Debug = UnityEngine.Debug;
 
 public class FSharpImporter : AssetPostprocessor
 {
-	private const string MenuItemRecompile = "F#/Compile F#";
-	private const string MenuItemAutoCompile = "F#/Enable Auto-compile";
-	private const string MenuItemUseDotnet = "F#/Use dotnet compiler";
-	private const string MenuItemIsDebug = "F#/Show debug information";
-	private const string MenuItemCreateFSharpProject = "F#/Create F# project";
+	public const string MenuItemRecompile = "F#/Compile F#";
+	public const string MenuItemAutoCompile = "F#/Enable Auto-compile";
+//	public const string MenuItemUseDotnet = "F#/Use dotnet compiler";
+	public const string MenuItemIsDebug = "F#/Show debug information";
+	public const string MenuItemCreateFSharpProject = "F#/Create F# project";
 	
 	private static bool _compiling = false;
 	private static bool _autoRecompile = EditorPrefs.GetBool(MenuItemAutoCompile, false);
-	private static bool _useDotnet = EditorPrefs.GetBool(MenuItemUseDotnet, true);
+//	private static bool _useDotnet = EditorPrefs.GetBool(MenuItemUseDotnet, true);
 	private static bool _isDebug = EditorPrefs.GetBool(MenuItemIsDebug, true);
 	
 //	private static readonly XNamespace Xmlns = "http://schemas.microsoft.com/developer/msbuild/2003";
@@ -40,7 +40,7 @@ public class FSharpImporter : AssetPostprocessor
 			Debug.Log("No build tools found :(\nRequires 'dotnet' or 'msbuild' to be installed and available in the terminal");
 		}
 		Menu.SetChecked(MenuItemAutoCompile, EditorPrefs.GetBool(MenuItemAutoCompile, false));
-		Menu.SetChecked(MenuItemUseDotnet, EditorPrefs.GetBool(MenuItemUseDotnet, _dotnetAvailable));
+//		Menu.SetChecked(MenuItemUseDotnet, EditorPrefs.GetBool(MenuItemUseDotnet, _dotnetAvailable));
 		Menu.SetChecked(MenuItemIsDebug, EditorPrefs.GetBool(MenuItemIsDebug, true));
 	}
 
@@ -54,14 +54,9 @@ public class FSharpImporter : AssetPostprocessor
 	[MenuItem(MenuItemRecompile, false, 1)]
 	public static void InvokeCompiler()
 	{
-		if (_useDotnet && !_dotnetAvailable || !_useDotnet && !_msbuildAvailable)
+		if (!_dotnetAvailable)
 		{
-			Debug.Log($"Compiler is not available {(_useDotnet ? "dotnet" : "msbuild")}");
-			return;
-		}
-		if (!_dotnetAvailable && !_msbuildAvailable)
-		{
-			Debug.Log("No compilers available (dotnet, msbuild)");	
+			Debug.Log($"The dotnet compiler is not available");
 			return;
 		}
 		if (_compiling) return;
@@ -71,15 +66,12 @@ public class FSharpImporter : AssetPostprocessor
 			var dir = Directory.GetCurrentDirectory();
 			
 			var fsProjects = Directory.EnumerateFiles(dir, "*.fsproj", SearchOption.AllDirectories);
-			Task.Run(() => {
-				var references = ExtractUnityReferences(dir);
-
-				foreach (var project in fsProjects)
-				{
-					EnsureReferences(project, references);
-					Compile(dir, project);
-				}
-			});
+			var references = ExtractUnityReferences(dir);
+			foreach (var project in fsProjects)
+			{
+				EnsureReferences(project, references);
+				Compile(dir, project);
+			}
 		} 
 		catch (Exception e) {
 			Debug.LogError(e);
@@ -89,18 +81,7 @@ public class FSharpImporter : AssetPostprocessor
 
 	[MenuItem(MenuItemRecompile, true, 1)]
 	public static bool IsReadyForCompilation() =>
-		!_compiling && (_useDotnet && _dotnetAvailable) || (!_useDotnet && _msbuildAvailable);
-	
-	[MenuItem(MenuItemUseDotnet, false, 51)]
-	public static void ToggleDotnet()
-	{
-		_useDotnet = !_useDotnet;
-		Menu.SetChecked(MenuItemUseDotnet, _useDotnet);
-		EditorPrefs.SetBool(MenuItemUseDotnet, _useDotnet);
-	}
-	
-	[MenuItem(MenuItemUseDotnet, true, 51)]
-	public static bool IsDotnetAvailable() => _dotnetAvailable;
+		!_compiling && _dotnetAvailable;
 	
 	
 	[MenuItem(MenuItemAutoCompile, false, 52)]
@@ -230,34 +211,20 @@ public class FSharpImporter : AssetPostprocessor
 		{
 			var started = DateTime.UtcNow;
 			var success = (false, "");
-			if (_useDotnet)
-			{
-				if (_isDebug) Debug.Log($"Compiling '{Path.GetFileNameWithoutExtension(project)}' using dotnet");
-				success = ExecuteCmd("dotnet", $"build \"{project}\" --no-dependencies --no-restore --verbosity quiet --output \"{projectBuildDir}\"");
-			}
-			else
-			{
-				if (_isDebug) Debug.Log($"Compiling '{Path.GetFileNameWithoutExtension(project)}' using msbuild");
-				success = ExecuteCmd("msbuild", $"\"{projectDir}\" -p:OutputPath=\"{projectBuildDir}\" -verbosity:quiet -maxcpucount");
-			}
-
+			
+			if (_isDebug) Debug.Log($"Compiling '{Path.GetFileNameWithoutExtension(project)}' using dotnet");
+			success = ExecuteCmd("dotnet", $"build \"{project}\" --no-dependencies --no-restore --verbosity quiet --output \"{projectBuildDir}\"");
+			
 			if (!success.Item1)
 			{
-				Debug.LogError($"Compilation using {(_useDotnet ? "dotnet" : "msbuild")} failed!");
-				Debug.LogError(success.Item2);
+				Debug.LogError($"Compilation using dotnet failed!\n{success.Item2}");
 				return;
 			}
 			
 			if (_isDebug) Debug.Log($"Compilation of '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
 			
-			// Copy needed dll .files
 			started = DateTime.UtcNow;
 			File.Copy(projectDllBuildPath,projectDllAssetPath, true);
-			
-			if (!File.Exists(Path.Combine(unityAssetsPath, fsCoreDll)))
-			{
-				File.Copy(Path.Combine(projectBuildDir, fsCoreDll), Path.Combine(unityAssetsPath, fsCoreDll));
-			}
 			
 			if (_isDebug) Debug.Log($"Copying files from '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
 		}
@@ -287,15 +254,15 @@ public class FSharpImporter : AssetPostprocessor
 
 	private static (bool, string) ExecuteCmd(string cmd, string args)
 	{
-		var outputBuilder = new StringBuilder();
 		var proc = Process.Start(new ProcessStartInfo(cmd)
 		{
 			WindowStyle = ProcessWindowStyle.Hidden, 
-			Arguments = args
+			Arguments = args,
+			UseShellExecute = false,
+			RedirectStandardOutput = true
 		});
-		proc.OutputDataReceived += (s, e) => outputBuilder.AppendLine(e.Data);
-		proc.ErrorDataReceived += (s, e) => outputBuilder.AppendLine(e.Data);
+		string output = proc.StandardOutput.ReadToEnd();
 		proc?.WaitForExit();
-		return (proc.ExitCode == 0, outputBuilder.ToString());
+		return (proc.ExitCode == 0, output);
 	}
 }
