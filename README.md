@@ -1,4 +1,4 @@
-# unity-fsharp-integration
+# Unity F# integration
 
 - Requires [.NET Core SDK](https://dotnet.microsoft.com/download)
 - Download the [Unity package here](https://github.com/sppt-2k19/unity-fsharp-integration/raw/master/unity-fsharp-integration.unitypackage)
