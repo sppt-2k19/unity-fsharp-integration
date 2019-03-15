@@ -15,16 +15,13 @@ public class FSharpImporter : AssetPostprocessor
 {
 	public const string MenuItemRecompile = "F#/Compile F#";
 	public const string MenuItemAutoCompile = "F#/Enable Auto-compile";
-//	public const string MenuItemUseDotnet = "F#/Use dotnet compiler";
 	public const string MenuItemIsDebug = "F#/Show debug information";
 	public const string MenuItemCreateFSharpProject = "F#/Create F# project";
 	
 	private static bool _compiling = false;
 	private static bool _autoRecompile = EditorPrefs.GetBool(MenuItemAutoCompile, false);
-//	private static bool _useDotnet = EditorPrefs.GetBool(MenuItemUseDotnet, true);
 	private static bool _isDebug = EditorPrefs.GetBool(MenuItemIsDebug, true);
 	
-//	private static readonly XNamespace Xmlns = "http://schemas.microsoft.com/developer/msbuild/2003";
 	private static readonly Regex MatchReferences =
 		new Regex("<Reference Include=\"([^\"]+)\">\\s*<HintPath>([^<]+)<\\/HintPath>\\s*<\\/Reference>", RegexOptions.Compiled);
 
@@ -40,7 +37,6 @@ public class FSharpImporter : AssetPostprocessor
 			Debug.Log("No build tools found :(\nRequires 'dotnet' or 'msbuild' to be installed and available in the terminal");
 		}
 		Menu.SetChecked(MenuItemAutoCompile, EditorPrefs.GetBool(MenuItemAutoCompile, false));
-//		Menu.SetChecked(MenuItemUseDotnet, EditorPrefs.GetBool(MenuItemUseDotnet, _dotnetAvailable));
 		Menu.SetChecked(MenuItemIsDebug, EditorPrefs.GetBool(MenuItemIsDebug, true));
 	}
 
