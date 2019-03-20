@@ -17,6 +17,8 @@ public class FSharpImporter : AssetPostprocessor
 	public const string MenuItemCreateFSharpProject = "F#/Create F# project";
 
 	private const string Version = "1.1.4";
+
+	private static string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
 	
 	private static bool _compiling = false;
 	private static bool _autoRecompile = EditorPrefs.GetBool(MenuItemAutoCompile, false);
@@ -123,10 +125,12 @@ public class FSharpImporter : AssetPostprocessor
 			var unityCsProjects = Directory.GetFiles(dir, "*.csproj", SearchOption.TopDirectoryOnly);
 			if (!unityCsProjects.Any()) throw new FileNotFoundException("No Unity projects to copy references from found. Please add a C# script, open it, and try again");
 			
+			var allReferences = new HashSet<Reference>();
 			var csDlls = Directory.GetFiles(dir, "Assembly-CSharp.dll", SearchOption.AllDirectories);
-			var proper = csDlls.FirstOrDefault(dll => dll.Contains("Release")) ?? csDlls.FirstOrDefault();
+			var properDll = csDlls.FirstOrDefault(dll => dll.Contains("Release")) ?? csDlls.FirstOrDefault();
 
-			var allReferences = new HashSet<Reference> {new Reference("Assembly-CSharp", proper)};
+			if (properDll != null) allReferences.Add(new Reference("Assembly-CSharp", properDll));
+			
 			foreach (var project in unityCsProjects)
 			{
 				var csProjectContent = File.ReadAllText(project);
@@ -135,11 +139,10 @@ public class FSharpImporter : AssetPostprocessor
 				{
 					var include = match.Groups[1].Value;
 					var hintPath = match.Groups[2].Value;
-					if (hintPath.EndsWith("Assembly-FSharp.dll")) continue;
+					if (IgnoredFiles.Any(file => hintPath.EndsWith(file))) continue;
 					allReferences.Add(new Reference(include, hintPath));
 				}
 			}
-
 
 			var unityEngine = allReferences.FirstOrDefault(r => r.Include == "UnityEngine");
 			var unityEditor = allReferences.FirstOrDefault(r => r.Include == "UnityEditor");
