@@ -16,7 +16,7 @@ public class FSharpImporter : AssetPostprocessor
 	public const string MenuItemIsDebug = "F#/Show debug information";
 	public const string MenuItemCreateFSharpProject = "F#/Create F# project";
 
-	private const string Version = "1.1.2";
+	private const string Version = "1.1.3";
 	
 	private static bool _compiling = false;
 	private static bool _autoRecompile = EditorPrefs.GetBool(MenuItemAutoCompile, false);
@@ -120,11 +120,13 @@ public class FSharpImporter : AssetPostprocessor
 		return new Lazy<ReferenceContainer>(() =>
 		{
 			var started = DateTime.UtcNow;
-			var unityCsProjects = Directory.EnumerateFiles(dir, "*.csproj", SearchOption.TopDirectoryOnly);
-
+			var unityCsProjects = Directory.GetFiles(dir, "*.csproj", SearchOption.TopDirectoryOnly);
 			if (!unityCsProjects.Any()) throw new FileNotFoundException("No Unity projects to copy references from found. Please add a C# script, open it, and try again");
 			
-			var allReferences = new HashSet<Reference>();
+			var csDlls = Directory.GetFiles(dir, "Assembly-CSharp.dll", SearchOption.AllDirectories);
+			var proper = csDlls.FirstOrDefault(dll => dll.Contains("Release")) ?? csDlls.FirstOrDefault();
+
+			var allReferences = new HashSet<Reference> {new Reference("Assembly-CSharp", proper)};
 			foreach (var project in unityCsProjects)
 			{
 				var csProjectContent = File.ReadAllText(project);
@@ -162,6 +164,7 @@ public class FSharpImporter : AssetPostprocessor
 		var references = lazyReferenceContainer.Value;
 		var fsProjectDocument = XDocument.Parse(fsProjectContent);
 		
+		// Remove existing references
 		fsProjectDocument
 			.Descendants("ItemGroup")
 			.Where(ig => ig.FirstNode is XElement el && el.Name == "Reference")
