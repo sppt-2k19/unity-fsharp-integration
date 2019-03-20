@@ -3,9 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
-using System.Text;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Xml.Linq;
 using UnityEditor;
 using Debug = UnityEngine.Debug;
@@ -17,6 +15,8 @@ public class FSharpImporter : AssetPostprocessor
 	public const string MenuItemAutoCompile = "F#/Enable Auto-compile";
 	public const string MenuItemIsDebug = "F#/Show debug information";
 	public const string MenuItemCreateFSharpProject = "F#/Create F# project";
+
+	private const string Version = "1.1.1";
 	
 	private static bool _compiling = false;
 	private static bool _autoRecompile = EditorPrefs.GetBool(MenuItemAutoCompile, false);
@@ -26,15 +26,14 @@ public class FSharpImporter : AssetPostprocessor
 		new Regex("<Reference Include=\"([^\"]+)\">\\s*<HintPath>([^<]+)<\\/HintPath>\\s*<\\/Reference>", RegexOptions.Compiled);
 
 	private static bool _dotnetAvailable;
-	private static bool _msbuildAvailable;
 
 	public FSharpImporter()
 	{
+		Debug.Log($" -- F# Unity-integration v. {Version} -- ");
 		_dotnetAvailable = CanExecuteCmd("dotnet", "--version");
-		_msbuildAvailable = CanExecuteCmd("msbuild", "/version");
-		if (!_dotnetAvailable && !_msbuildAvailable)
+		if (!_dotnetAvailable)
 		{
-			Debug.Log("No build tools found :(\nRequires 'dotnet' or 'msbuild' to be installed and available in the terminal");
+			Debug.Log("No build tools found :(\nRequires 'dotnet' to be installed and available in a terminal");
 		}
 		Menu.SetChecked(MenuItemAutoCompile, EditorPrefs.GetBool(MenuItemAutoCompile, false));
 		Menu.SetChecked(MenuItemIsDebug, EditorPrefs.GetBool(MenuItemIsDebug, true));
@@ -161,10 +160,13 @@ public class FSharpImporter : AssetPostprocessor
 		var started = DateTime.UtcNow;
 		var fsProjectContent = File.ReadAllText(project);
 		
-		if (fsProjectContent.Contains("UnityEngine")) return;
-
 		var references = lazyReferenceContainer.Value;
 		var fsProjectDocument = XDocument.Parse(fsProjectContent);
+		
+		fsProjectDocument
+			.Descendants("ItemGroup")
+			.Where(ig => ig.FirstNode is XElement el && el.Name == "Reference")
+			.Remove();
 		
 		var unityMainReferences = new XElement("ItemGroup");
 		unityMainReferences.Add(new XElement("Reference", new XAttribute("Include", references.UnityEngine.Include),
@@ -196,8 +198,7 @@ public class FSharpImporter : AssetPostprocessor
 		var projectDllFilename = Path.GetFileNameWithoutExtension(project) + ".dll";
 		var projectDllBuildPath = Path.Combine(projectBuildDir, projectDllFilename);
 		var projectDllAssetPath = Path.Combine(unityAssetsPath, projectDllFilename);
-		var fsCoreDll = "FSharp.Core.dll";
-
+		
 		// Check if a recompilation is needed
 		var fsFiles = Directory.EnumerateFiles(projectDir, "*.fs", SearchOption.AllDirectories);	
 		var lastProjectWriteTimeUtc = File.GetLastWriteTimeUtc(projectDllAssetPath);
@@ -257,8 +258,8 @@ public class FSharpImporter : AssetPostprocessor
 			UseShellExecute = false,
 			RedirectStandardOutput = true
 		});
-		string output = proc.StandardOutput.ReadToEnd();
+		var output = proc?.StandardOutput.ReadToEnd();
 		proc?.WaitForExit();
-		return (proc.ExitCode == 0, output);
+		return (proc?.ExitCode == 0, output);
 	}
 }
