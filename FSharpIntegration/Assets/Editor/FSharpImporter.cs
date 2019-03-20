@@ -16,7 +16,7 @@ public class FSharpImporter : AssetPostprocessor
 	public const string MenuItemIsDebug = "F#/Show debug information";
 	public const string MenuItemCreateFSharpProject = "F#/Create F# project";
 
-	private const string Version = "1.1.1";
+	private const string Version = "1.1.2";
 	
 	private static bool _compiling = false;
 	private static bool _autoRecompile = EditorPrefs.GetBool(MenuItemAutoCompile, false);
@@ -59,7 +59,6 @@ public class FSharpImporter : AssetPostprocessor
 		try
 		{
 			var dir = Directory.GetCurrentDirectory();
-			
 			var fsProjects = Directory.EnumerateFiles(dir, "*.fsproj", SearchOption.AllDirectories);
 			var references = ExtractUnityReferences(dir);
 			foreach (var project in fsProjects)
@@ -74,9 +73,9 @@ public class FSharpImporter : AssetPostprocessor
 		_compiling = false;
 	}
 
-	[MenuItem(MenuItemRecompile, true, 1)]
-	public static bool IsReadyForCompilation() =>
-		!_compiling && _dotnetAvailable;
+//	[MenuItem(MenuItemRecompile, true, 1)]
+//	public static bool IsReadyForCompilation() =>
+//		!_compiling && _dotnetAvailable;
 	
 	
 	[MenuItem(MenuItemAutoCompile, false, 52)]
