@@ -16,7 +16,7 @@ public class FSharpImporter : AssetPostprocessor
 	public const string MenuItemIsDebug = "F#/Show debug information";
 	public const string MenuItemCreateFSharpProject = "F#/Create F# project";
 
-	private const string Version = "1.1.3";
+	private const string Version = "1.1.4";
 	
 	private static bool _compiling = false;
 	private static bool _autoRecompile = EditorPrefs.GetBool(MenuItemAutoCompile, false);
@@ -135,6 +135,7 @@ public class FSharpImporter : AssetPostprocessor
 				{
 					var include = match.Groups[1].Value;
 					var hintPath = match.Groups[2].Value;
+					if (hintPath.EndsWith("Assembly-FSharp.dll")) continue;
 					allReferences.Add(new Reference(include, hintPath));
 				}
 			}
