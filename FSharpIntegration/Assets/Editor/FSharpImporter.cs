@@ -12,16 +12,14 @@ using Debug = UnityEngine.Debug;
 public class FSharpImporter : AssetPostprocessor
 {
 	public const string MenuItemRecompile = "F#/Compile F#";
-	public const string MenuItemAutoCompile = "F#/Enable Auto-compile";
 	public const string MenuItemIsDebug = "F#/Show debug information";
 	public const string MenuItemCreateFSharpProject = "F#/Create F# project";
 
-	private const string Version = "1.1.4";
+	private const string Version = "1.1.5";
 
 	private static string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
 	
 	private static bool _compiling = false;
-	private static bool _autoRecompile = EditorPrefs.GetBool(MenuItemAutoCompile, false);
 	private static bool _isDebug = EditorPrefs.GetBool(MenuItemIsDebug, true);
 	
 	private static readonly Regex MatchReferences =
@@ -37,15 +35,7 @@ public class FSharpImporter : AssetPostprocessor
 		{
 			Debug.Log("No build tools found :(\nRequires 'dotnet' to be installed and available in a terminal");
 		}
-		Menu.SetChecked(MenuItemAutoCompile, EditorPrefs.GetBool(MenuItemAutoCompile, false));
 		Menu.SetChecked(MenuItemIsDebug, EditorPrefs.GetBool(MenuItemIsDebug, true));
-	}
-
-	static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
-	{
-		if (!_autoRecompile) return;
-		if (_isDebug) Debug.Log ("Starting automatic recompilation");
-		InvokeCompiler();
 	}
 	
 	[MenuItem(MenuItemRecompile, false, 1)]
@@ -56,7 +46,12 @@ public class FSharpImporter : AssetPostprocessor
 			Debug.Log($"The dotnet compiler is not available");
 			return;
 		}
-		if (_compiling) return;
+
+		if (_compiling)
+		{
+			Debug.Log("Already compiling...");
+			return;
+		}
 		_compiling = true;
 		try
 		{
@@ -74,20 +69,12 @@ public class FSharpImporter : AssetPostprocessor
 		}
 		_compiling = false;
 	}
-
-//	[MenuItem(MenuItemRecompile, true, 1)]
-//	public static bool IsReadyForCompilation() =>
-//		!_compiling && _dotnetAvailable;
 	
-	
-	[MenuItem(MenuItemAutoCompile, false, 52)]
-	public static void ToggleAutoCompile()
+	[MenuItem(MenuItemRecompile, true, 1)]
+	public static bool CanInvokeCompiler()
 	{
-		_autoRecompile = !_autoRecompile;
-		Menu.SetChecked(MenuItemAutoCompile, _autoRecompile);
-		EditorPrefs.SetBool(MenuItemAutoCompile, _autoRecompile);
+		return !_compiling;
 	}
-	
 	
 	[MenuItem(MenuItemIsDebug, false, 53)]
 	public static void ToggleIsDebug()
