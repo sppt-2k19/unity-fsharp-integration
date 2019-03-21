@@ -9,15 +9,15 @@ using UnityEditor;
 using Debug = UnityEngine.Debug;
 
 
-public class FSharpImporter : AssetPostprocessor
+public class FSharpImporter
 {
 	public const string MenuItemRecompile = "F#/Compile F#";
 	public const string MenuItemIsDebug = "F#/Show debug information";
 	public const string MenuItemCreateFSharpProject = "F#/Create F# project";
 
-	private const string Version = "1.1.5";
+	private const string Version = "1.1.6";
 
-	private static string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
+	private static readonly string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
 	
 	private static bool _compiling = false;
 	private static bool _isDebug = EditorPrefs.GetBool(MenuItemIsDebug, true);
