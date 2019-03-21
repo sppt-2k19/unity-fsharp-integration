@@ -1,10 +1,11 @@
 # Unity F# integration
-
+### _Make Unity fun<sup>ctional</sup> again!_
 - Requires [.NET Core SDK](https://dotnet.microsoft.com/download)
 - Download the [Unity package here](https://github.com/sppt-2k19/unity-fsharp-integration/raw/master/unity-fsharp-integration.unitypackage)
 
-Installing this Unity package adds an F# menu to the Unity editor
+Installing this Unity package adds an F# menu to the Unity editor:
+- `Compile F#` _detects F# projects in the current Unity project folder and compiles them using `dotnet`_
+- `Show debug information` _toggles printing of debug information during compilation_
+- `Create F# project` _creates an F# project using `dotnet` and adds all Unity references_
 
-This menu allows you to create and compile F# projects located inside the Unity-project folder, but preferably not inside the Assets folder.
-- Create an F# project with the required references for Unity development
-- Compile F# projects and copy the .dll to the `Assets/`-folder, so Unity can load classes from it
+After creating a project through the extension, use the `Compile F#` button to compile the project and copy the resulting .dll into the `Assets/`-folder, so Unity can index it
