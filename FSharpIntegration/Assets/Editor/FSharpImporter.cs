@@ -15,7 +15,7 @@ public class FSharpImporter
 	public const string MenuItemIsDebug = "F#/Show debug information";
 	public const string MenuItemCreateFSharpProject = "F#/Create F# project";
 
-	private const string Version = "1.1.6";
+	private const string Version = "1.1.7";
 
 	private static readonly string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
 	
@@ -41,12 +41,6 @@ public class FSharpImporter
 	[MenuItem(MenuItemRecompile, false, 1)]
 	public static void InvokeCompiler()
 	{
-		if (!_dotnetAvailable)
-		{
-			Debug.Log($"The dotnet compiler is not available");
-			return;
-		}
-
 		if (_compiling)
 		{
 			Debug.Log("Already compiling...");
@@ -236,9 +230,13 @@ public class FSharpImporter
 			Process.Start(startInfo)?.WaitForExit();
 			return true;
 		}
-		catch (Exception)
+		catch (FileNotFoundException)
 		{
 			return false;
+		}
+		catch (Exception)
+		{
+			return true;
 		}
 	}
 
