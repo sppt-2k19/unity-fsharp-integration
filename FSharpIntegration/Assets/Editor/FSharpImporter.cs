@@ -11,16 +11,33 @@ using Debug = UnityEngine.Debug;
 
 public class FSharpImporter
 {
-	public const string MenuItemRecompile = "F#/Compile F#";
+	public const string MenuItemRecompile = "F#/Compile F# _F6";
+	public const string MenuItemReleaseBuild = "F#/Release build";
+	public const string MenuItemIncludeAdditionalReferences = "F#/Include additional references";
 	public const string MenuItemIsDebug = "F#/Show debug information";
 	public const string MenuItemCreateFSharpProject = "F#/Create F# project";
 
-	private const string Version = "1.1.7";
+	private const string Version = "1.1.8";
 
 	private static readonly string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
 	
 	private static bool _compiling = false;
-	private static bool _isDebug = EditorPrefs.GetBool(MenuItemIsDebug, true);
+	
+	private static bool ShowDebugInfo
+	{
+		get => EditorPrefs.GetBool(MenuItemIsDebug, false);
+		set => EditorPrefs.SetBool(MenuItemIsDebug, value);
+	}
+	private static bool IsReleaseMode
+	{
+		get => EditorPrefs.GetBool(MenuItemIsDebug, false);
+		set => EditorPrefs.SetBool(MenuItemIsDebug, value);
+	}
+	private static bool IncludeAdditionalReferences
+	{
+		get => EditorPrefs.GetBool(MenuItemIncludeAdditionalReferences, false);
+		set => EditorPrefs.SetBool(MenuItemIncludeAdditionalReferences, value);
+	}
 	
 	private static readonly Regex MatchReferences =
 		new Regex("<Reference Include=\"([^\"]+)\">\\s*<HintPath>([^<]+)<\\/HintPath>\\s*<\\/Reference>", RegexOptions.Compiled);
@@ -35,7 +52,14 @@ public class FSharpImporter
 		{
 			Debug.Log("No build tools found :(\nRequires 'dotnet' to be installed and available in a terminal");
 		}
-		Menu.SetChecked(MenuItemIsDebug, EditorPrefs.GetBool(MenuItemIsDebug, true));
+
+		try
+		{
+			Menu.SetChecked(MenuItemIsDebug, ShowDebugInfo);
+			Menu.SetChecked(MenuItemReleaseBuild, IsReleaseMode);
+			Menu.SetChecked(MenuItemIncludeAdditionalReferences, IncludeAdditionalReferences);
+		}
+		catch (Exception) { }
 	}
 	
 	[MenuItem(MenuItemRecompile, false, 1)]
@@ -70,12 +94,25 @@ public class FSharpImporter
 		return !_compiling;
 	}
 	
+	[MenuItem(MenuItemReleaseBuild, false, 2)]
+	public static void ToggleReleaseBuild()
+	{
+		IsReleaseMode = !IsReleaseMode;
+		Menu.SetChecked(MenuItemReleaseBuild, IsReleaseMode);
+	}
+	
+	[MenuItem(MenuItemIncludeAdditionalReferences, false, 3)]
+	public static void ToggleIncludeAdditionalReferences()
+	{
+		IncludeAdditionalReferences = !IncludeAdditionalReferences;
+		Menu.SetChecked(MenuItemIncludeAdditionalReferences, IncludeAdditionalReferences);
+	}
+	
 	[MenuItem(MenuItemIsDebug, false, 53)]
 	public static void ToggleIsDebug()
 	{
-		_isDebug = !_isDebug;
-		Menu.SetChecked(MenuItemIsDebug, _isDebug);
-		EditorPrefs.SetBool(MenuItemIsDebug, _isDebug);
+		ShowDebugInfo = !ShowDebugInfo;
+		Menu.SetChecked(MenuItemIsDebug, ShowDebugInfo);
 	}
 
 	
@@ -131,7 +168,7 @@ public class FSharpImporter
 			allReferences.Remove(unityEngine);
 			allReferences.Remove(unityEditor);
 		
-			if (_isDebug) Debug.Log($"Extracting references from Unity project took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
+			if (ShowDebugInfo) Debug.Log($"Extracting references from Unity project took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
 			return new ReferenceContainer
 			{
 				UnityEngine = unityEngine,
@@ -160,25 +197,29 @@ public class FSharpImporter
 			new XElement("HintPath", references.UnityEngine.HintPath)));
 		unityMainReferences.Add(new XElement("Reference", new XAttribute("Include", references.UnityEditor.Include),
 			new XElement("HintPath", references.UnityEditor.HintPath)));
+		fsProjectDocument.Root.Add(unityMainReferences);
 
-		var unityAdditionalReferences = new XElement("ItemGroup");
-		foreach (var reference in references.Additional)
+		if (IncludeAdditionalReferences)
 		{
-			unityAdditionalReferences.Add(new XElement("Reference", new XAttribute("Include", reference.Include),
-				new XElement("HintPath", reference.HintPath)));
+			var unityAdditionalReferences = new XElement("ItemGroup");
+			foreach (var reference in references.Additional)
+			{
+				unityAdditionalReferences.Add(new XElement("Reference", new XAttribute("Include", reference.Include),
+					new XElement("HintPath", reference.HintPath)));
+			}
+			fsProjectDocument.Root.Add(unityAdditionalReferences);
 		}
 
-		fsProjectDocument.Root.Add(unityMainReferences);
-		fsProjectDocument.Root.Add(unityAdditionalReferences);
 		fsProjectDocument.Save(project);
 		
-		if (_isDebug) Debug.Log($"Adding references to '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
+		if (ShowDebugInfo) Debug.Log($"Adding references to '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
 	}
 	
 	private static void Compile(string unityRoot, string project)
 	{
 		var projectDir = Path.GetDirectoryName(project);
-		var projectBuildDir = Path.Combine(projectDir, "build");
+		var configuration = IsReleaseMode ? "Release" : "Debug";
+		var projectBuildDir = Path.Combine(projectDir, "bin", configuration);
 		
 		Directory.CreateDirectory(projectBuildDir);
 		var unityAssetsPath = Path.Combine(unityRoot, "Assets");
@@ -196,8 +237,8 @@ public class FSharpImporter
 			var started = DateTime.UtcNow;
 			var success = (false, "");
 			
-			if (_isDebug) Debug.Log($"Compiling '{Path.GetFileNameWithoutExtension(project)}' using dotnet");
-			success = ExecuteCmd("dotnet", $"build \"{project}\" --no-dependencies --no-restore --verbosity quiet --output \"{projectBuildDir}\"");
+			if (ShowDebugInfo) Debug.Log($"Compiling '{Path.GetFileNameWithoutExtension(project)}' using dotnet");
+			success = ExecuteCmd("dotnet", $"build \"{project}\" --no-dependencies --configuration {configuration} --no-restore --verbosity quiet --output \"{projectBuildDir}\"");
 			
 			if (!success.Item1)
 			{
@@ -205,12 +246,12 @@ public class FSharpImporter
 				return;
 			}
 			
-			if (_isDebug) Debug.Log($"Compilation of '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
+			if (ShowDebugInfo) Debug.Log($"Compilation of '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
 			
 			started = DateTime.UtcNow;
 			File.Copy(projectDllBuildPath,projectDllAssetPath, true);
 			
-			if (_isDebug) Debug.Log($"Copying files from '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
+			if (ShowDebugInfo) Debug.Log($"Copying files from '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
 		}
 		else
 		{
