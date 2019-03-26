@@ -13,13 +13,14 @@ public class FSharpImporter
 {
 	private const string MenuItemRecompile = "F#/Compile F# _F6";
 	private const string MenuItemCreateFSharpProject = "F#/Create F# project";
+	private const string MenuItemOpenFSharpProject = "F#/Open F# project in default editor";
 
 	private const string MenuItemReferenceCSharpDll = "F#/Include reference to C# project";
 	private const string MenuItemIncludeAdditionalReferences = "F#/Include additional references";
 	private const string MenuItemReleaseBuild = "F#/Compile in release mode";
 	private const string MenuItemIsDebug = "F#/Show debug information";
 
-	private const string Version = "1.1.10";
+	private const string Version = "1.1.11";
 
 	private static readonly string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
 	
@@ -129,6 +130,27 @@ public class FSharpImporter
 	{
 		var projectDir = Path.Combine(Directory.GetCurrentDirectory(), "Assembly-FSharp");
 		return DotnetAvailable && !Directory.Exists(projectDir);
+	}
+	
+	[MenuItem(MenuItemOpenFSharpProject, false, 3)]
+	public static void OpenFSharpProject()
+	{
+		var fsProjectPath = Path.Combine(Directory.GetCurrentDirectory(), "Assembly-FSharp", "Assembly-FSharp.fsproj");
+		if (File.Exists(fsProjectPath))
+		{
+			Process.Start(fsProjectPath);
+		}
+		else
+		{
+			Print("cannot find the F# project to open");
+		}
+	}
+	
+	[MenuItem(MenuItemOpenFSharpProject, true, 3)]
+	public static bool CanOpenFSharpProject()
+	{
+		var fsProjectPath = Path.Combine(Directory.GetCurrentDirectory(), "Assembly-FSharp", "Assembly-FSharp.fsproj");
+		return File.Exists(fsProjectPath);
 	}
 	
 	[MenuItem(MenuItemReferenceCSharpDll, false, 51)]
