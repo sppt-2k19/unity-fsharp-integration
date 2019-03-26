@@ -5,8 +5,8 @@
 
 Installing this Unity package adds an F# menu to the Unity editor:
 - `Compile F#` _detects F# projects in the current Unity project folder and compiles them using `dotnet`_
-- `Open F# project in default editor` _opens the F# project with the current default application for .fsproj files_
 - `Create F# project` _creates an F# project using `dotnet` and adds all Unity references_
+- `Open F# project in default editor` _opens the F# project with the current default application for .fsproj files_
 - `Include reference to C# project` _toggles the inclusion of a reference to the dll-file created by the Unity C# project_
 - `Include additional references` _toggles the inclusion of references to additional Unity modules, besides `UnityEngine` and `UnityEditor`_
 - `Compile in release mode` _toggles building in release mode instead of debug_
