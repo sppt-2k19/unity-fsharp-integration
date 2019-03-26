@@ -11,15 +11,15 @@ using Debug = UnityEngine.Debug;
 
 public class FSharpImporter
 {
-	private const string MenuItemRecompile = 					"F#/Compile F# _F6";
-	private const string MenuItemCreateFSharpProject = 			"F#/Create F# project";
-	
-	private const string MenuItemReferenceCSharpDll = 			"F#/Include reference to C# project";
-	private const string MenuItemIncludeAdditionalReferences = 	"F#/Include additional references";
-	private const string MenuItemReleaseBuild = 				"F#/Compile in release mode";
-	private const string MenuItemIsDebug = 						"F#/Show debug information";
+	private const string MenuItemRecompile = "F#/Compile F# _F6";
+	private const string MenuItemCreateFSharpProject = "F#/Create F# project";
 
-	private const string Version = 								"1.1.9";
+	private const string MenuItemReferenceCSharpDll = "F#/Include reference to C# project";
+	private const string MenuItemIncludeAdditionalReferences = "F#/Include additional references";
+	private const string MenuItemReleaseBuild = "F#/Compile in release mode";
+	private const string MenuItemIsDebug = "F#/Show debug information";
+
+	private const string Version = "1.1.10";
 
 	private static readonly string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
 	
@@ -51,17 +51,20 @@ public class FSharpImporter
 	private static readonly Regex MatchReferences =
 		new Regex("<Reference Include=\"([^\"]+)\">\\s*<HintPath>([^<]+)<\\/HintPath>\\s*<\\/Reference>", RegexOptions.Compiled);
 
-	private static bool _dotnetAvailable;
+	private static readonly bool DotnetAvailable;
 
 	static FSharpImporter()
 	{
 		Print($"version {Version} loaded");
-		_dotnetAvailable = CanExecuteCmd("dotnet", "--version");
-		if (!_dotnetAvailable)
+		DotnetAvailable = CanExecuteCmd("dotnet", "--version");
+		if (!DotnetAvailable)
 		{
 			Print("dotnet was not found. Please install and ensure it is available from a terminal");
 		}
+	}
 
+	public FSharpImporter()
+	{
 		try
 		{
 			Menu.SetChecked(MenuItemIsDebug, ShowDebugInfo);
@@ -80,29 +83,33 @@ public class FSharpImporter
 			Print("already compiling...");
 			return;
 		}
-		_compiling = true;
-		try
+		else
 		{
-			var dir = Directory.GetCurrentDirectory();
-			var fsProjects = Directory.EnumerateFiles(dir, "*.fsproj", SearchOption.AllDirectories);
-			var releaseBuild = IsReleaseMode;
-			var references = ExtractUnityReferences(dir, releaseBuild);
-			foreach (var project in fsProjects)
+			_compiling = true;
+			try
 			{
-				UpdateReferences(project, references);
-				Compile(dir, project, releaseBuild);
+				var dir = Directory.GetCurrentDirectory();
+				var fsProjects = Directory.EnumerateFiles(dir, "*.fsproj", SearchOption.AllDirectories);
+				var releaseBuild = IsReleaseMode;
+				Print($"compiling in {(releaseBuild ? "release" : "debug")} mode..");
+				var references = ExtractUnityReferences(dir, releaseBuild);
+				foreach (var project in fsProjects)
+				{
+					UpdateReferences(project, references);
+					Compile(dir, project, releaseBuild);
+				}
+			} 
+			catch (Exception e) {
+				Debug.LogException(e);
 			}
-		} 
-		catch (Exception e) {
-			Debug.LogException(e);
+			_compiling = false;
 		}
-		_compiling = false;
 	}
 	
 	[MenuItem(MenuItemRecompile, true, 1)]
 	public static bool CanInvokeCompiler()
 	{
-		return !_compiling;
+		return DotnetAvailable && !_compiling;
 	}
 	
 	[MenuItem(MenuItemCreateFSharpProject, false, 2)]
@@ -121,7 +128,7 @@ public class FSharpImporter
 	public static bool CanCreateFSharpProject()
 	{
 		var projectDir = Path.Combine(Directory.GetCurrentDirectory(), "Assembly-FSharp");
-		return _dotnetAvailable && !Directory.Exists(projectDir);
+		return DotnetAvailable && !Directory.Exists(projectDir);
 	}
 	
 	[MenuItem(MenuItemReferenceCSharpDll, false, 51)]
@@ -231,6 +238,7 @@ public class FSharpImporter
 			{
 				var csharpReferenceGroup = new XElement("ItemGroup");
 				csharpReferenceGroup.Add(references.CSharpDll.ToXElement());
+				fsProjectDocument.Root.Add(csharpReferenceGroup);
 			}
 			else if (ShowDebugInfo)
 			{
