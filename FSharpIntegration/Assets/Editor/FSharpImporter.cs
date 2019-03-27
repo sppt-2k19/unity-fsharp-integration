@@ -20,7 +20,7 @@ public class FSharpImporter
 	private const string MenuItemReleaseBuild = "F#/Compile in release mode";
 	private const string MenuItemIsDebug = "F#/Show debug information";
 
-	private const string Version = "1.1.11";
+	private const string Version = "1.1.12";
 
 	private static readonly string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
 	
@@ -283,18 +283,28 @@ public class FSharpImporter
 		if (ShowDebugInfo) Print($"adding references to '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
 	}
 	
+	private static Regex TargetFrameworkRegex = new Regex("<TargetFramework>([^<]+)<\\/TargetFramework>", RegexOptions.Compiled);
 	private static void Compile(string unityRoot, string project, bool releaseMode)
 	{
 		var projectName = Path.GetFileNameWithoutExtension(project);
 		var projectDir = Path.GetDirectoryName(project);
 		var configuration = releaseMode ? "Release" : "Debug";
-		var projectBuildDir = Path.Combine(projectDir, "bin", configuration);
+
+		var fsProjContent = File.ReadAllText(project);
+		var match = TargetFrameworkRegex.Match(fsProjContent);
+		if (!match.Success)
+		{
+			Print($"could not parse the TargetFramework in {Path.GetFileName(project)}");
+			return;
+		}
+
+		var targetFramework = match.Groups[1].Value;
+		var projectBuildDir = Path.Combine(projectDir, "bin", configuration, targetFramework);
 		
 		Directory.CreateDirectory(projectBuildDir);
-		var unityAssetsPath = Path.Combine(unityRoot, "Assets");
 		var projectDllFilename = projectName + ".dll";
 		var projectDllBuildPath = Path.Combine(projectBuildDir, projectDllFilename);
-		var projectDllAssetPath = Path.Combine(unityAssetsPath, projectDllFilename);
+		var projectDllAssetPath = Path.Combine(unityRoot, "Assets", projectDllFilename);
 		
 		var buildFileLastModified = File.GetLastWriteTimeUtc(projectDllBuildPath);
 		var assetFileLastModified = File.GetLastWriteTimeUtc(projectDllAssetPath);
