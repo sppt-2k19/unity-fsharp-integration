@@ -4,11 +4,16 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using System.Xml.Linq;
+
+using Path = System.IO.Path;
+using Directory = System.IO.Directory;
+using File = System.IO.File;
 
 namespace FSharpIntegration.Editor
 {
-	public static class FSharpImporter
+	public class FSharpImporter : UnityEditor.AssetPostprocessor
 	{
 		private const string MenuItemRecompile = "F#/Compile F# _F6";
 		private const string MenuItemCreateFSharpProject = "F#/Create F# project";
@@ -19,7 +24,7 @@ namespace FSharpIntegration.Editor
 		private const string MenuItemReleaseBuild = "F#/Compile in release mode";
 		private const string MenuItemIsDebug = "F#/Show debug information";
 
-		private const string Version = "1.2.1";
+		private const string Version = "1.2.2";
 
 		private static readonly string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
 	
@@ -175,7 +180,16 @@ namespace FSharpIntegration.Editor
 			UnityEditor.Menu.SetChecked(MenuItemIsDebug, ShowDebugInfo);
 		}
 
-	
+		static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
+		{
+			var fsAssets = importedAssets.Where(file => Path.GetExtension(file) == ".fs");
+			if (fsAssets.Any())
+			{
+				InvokeCompiler();
+			}
+		}
+
+
 		private static Lazy<UnityReferenceContainer> ExtractUnityReferences(string dir, bool releaseBuild)
 		{
 			return new Lazy<UnityReferenceContainer>(() =>
