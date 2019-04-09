@@ -1,7 +1,6 @@
 # Unity F# integration
 ### _Make Unity fun<sup>ctional</sup> again!_
 - Requires [.NET Core SDK](https://dotnet.microsoft.com/download)
-- Download the [Unity package here](https://github.com/sppt-2k19/unity-fsharp-integration/raw/master/unity-fsharp-integration.unitypackage)
 
 Installing this Unity package adds an F# menu to the Unity editor:
 - `Compile F#` <kbd>F6</kbd> _finds F# projects in the current Unity project folder and compiles them using `dotnet`_
@@ -16,3 +15,6 @@ After creating an F# project through the extension, use the `Compile F#` button 
 
 You can also compile from the IDE you are using to edit the F# files, as long as the dll-file is put in `bin/Debug` or `bin/Release`. 
 _Just remember to click `Compile F#` to have the extension copy over the needed file._
+
+
+Download the [Unity package here](https://github.com/sppt-2k19/unity-fsharp-integration/raw/master/unity-fsharp-integration.unitypackage)
