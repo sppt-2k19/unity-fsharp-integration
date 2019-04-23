@@ -360,6 +360,10 @@ namespace FSharpIntegration.Editor
 				Process.Start(startInfo)?.WaitForExit();
 				return true;
 			}
+			catch (Win32Exception)
+			{
+				return false;
+			}
 			catch (FileNotFoundException)
 			{
 				return false;
