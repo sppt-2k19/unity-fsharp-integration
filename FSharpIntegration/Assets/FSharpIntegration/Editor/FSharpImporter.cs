@@ -4,7 +4,6 @@ using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Text.RegularExpressions;
-using System.Threading.Tasks;
 using System.Xml.Linq;
 
 using Path = System.IO.Path;
@@ -350,6 +349,11 @@ namespace FSharpIntegration.Editor
 
 		private static bool CanExecuteCmd(string cmd, string args)
 		{
+			if (cmd == "dotnet" && Environment.OSVersion.Platform == PlatformID.MacOSX)
+			{
+				// Use full path on macOS because it can't handle it otherwise
+				cmd = "/usr/local/share/dotnet/dotnet";
+			}
 			try
 			{
 				var startInfo = new ProcessStartInfo(cmd)
@@ -359,10 +363,6 @@ namespace FSharpIntegration.Editor
 				};
 				Process.Start(startInfo)?.WaitForExit();
 				return true;
-			}
-			catch (Win32Exception)
-			{
-				return false;
 			}
 			catch (FileNotFoundException)
 			{
