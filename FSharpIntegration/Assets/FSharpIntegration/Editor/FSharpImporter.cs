@@ -23,7 +23,7 @@ namespace FSharpIntegration.Editor
 		private const string MenuItemReleaseBuild = "F#/Compile in release mode";
 		private const string MenuItemIsDebug = "F#/Show debug information";
 
-		private const string Version = "1.2.2";
+		private const string Version = "1.2.3";
 
 		private static readonly string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
 	
@@ -340,11 +340,14 @@ namespace FSharpIntegration.Editor
 				}
 			
 				if (ShowDebugInfo) Print($"compilation of '{projectName}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
+				
 			}
 		
 			started = DateTime.UtcNow;
 			File.Copy(projectDllBuildPath,projectDllAssetPath, true);
-			if (ShowDebugInfo) Print($"copying '{projectDllFilename}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
+			Print(ShowDebugInfo
+				? $"copying '{projectDllFilename}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms"
+				: $"compilation of '{projectName}' completed");
 		}
 
 		private static bool CanExecuteCmd(string cmd, string args)
@@ -376,6 +379,11 @@ namespace FSharpIntegration.Editor
 
 		private static (bool, string) ExecuteCmd(string cmd, string args)
 		{
+			if (cmd == "dotnet" && Environment.OSVersion.Platform == PlatformID.MacOSX)
+			{
+				// Use full path on macOS because it can't handle it otherwise
+				cmd = "/usr/local/share/dotnet/dotnet";
+			}
 			var proc = Process.Start(new ProcessStartInfo(cmd)
 			{
 				WindowStyle = ProcessWindowStyle.Hidden, 
