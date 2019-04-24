@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
 
@@ -23,7 +24,7 @@ namespace FSharpIntegration.Editor
 		private const string MenuItemReleaseBuild = "F#/Compile in release mode";
 		private const string MenuItemIsDebug = "F#/Show debug information";
 
-		private const string Version = "1.2.4";
+		private const string Version = "1.2.5";
 
 		private static readonly string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
 	
@@ -352,7 +353,7 @@ namespace FSharpIntegration.Editor
 
 		private static bool CanExecuteCmd(string cmd, string args)
 		{
-			if (cmd == "dotnet" && Environment.OSVersion.Platform == PlatformID.MacOSX)
+			if (cmd == "dotnet" && RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 			{
 				// Use full path on macOS because it can't handle it otherwise
 				cmd = "/usr/local/share/dotnet/dotnet";
@@ -379,7 +380,7 @@ namespace FSharpIntegration.Editor
 
 		private static (bool, string) ExecuteCmd(string cmd, string args)
 		{
-			if (cmd == "dotnet" && Environment.OSVersion.Platform == PlatformID.MacOSX)
+			if (cmd == "dotnet" && RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
 			{
 				// Use full path on macOS because it can't handle it otherwise
 				cmd = "/usr/local/share/dotnet/dotnet";
