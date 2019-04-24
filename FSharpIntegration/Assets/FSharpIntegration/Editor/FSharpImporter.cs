@@ -23,7 +23,7 @@ namespace FSharpIntegration.Editor
 		private const string MenuItemReleaseBuild = "F#/Compile in release mode";
 		private const string MenuItemIsDebug = "F#/Show debug information";
 
-		private const string Version = "1.2.3";
+		private const string Version = "1.2.4";
 
 		private static readonly string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
 	
@@ -331,7 +331,7 @@ namespace FSharpIntegration.Editor
 			{
 				started = DateTime.UtcNow;
 
-				var success = ExecuteCmd("dotnet", $"build \"{project}\" --no-dependencies --configuration {configuration} --no-restore --verbosity quiet --output \"{projectBuildDir}\"");
+				var success = ExecuteCmd("dotnet", $"build \"{project}\" --no-dependencies --configuration {configuration} --verbosity quiet --output \"{projectBuildDir}\"");
 			
 				if (!success.Item1)
 				{
