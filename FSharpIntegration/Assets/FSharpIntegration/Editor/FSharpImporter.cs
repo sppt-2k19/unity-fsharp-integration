@@ -6,14 +6,15 @@ using System.Linq;
 using System.Runtime.InteropServices;
 using System.Text.RegularExpressions;
 using System.Xml.Linq;
-
+using UnityEditor;
 using Path = System.IO.Path;
-using Directory = System.IO.Directory;
 using File = System.IO.File;
+using Directory = System.IO.Directory;
 
 namespace FSharpIntegration.Editor
 {
-	public class FSharpImporter : UnityEditor.AssetPostprocessor
+	[InitializeOnLoad]
+	public static class FSharpImporter
 	{
 		private const string MenuItemRecompile = "F#/Compile F# _F6";
 		private const string MenuItemCreateFSharpProject = "F#/Create F# project";
@@ -24,6 +25,9 @@ namespace FSharpIntegration.Editor
 		private const string MenuItemReleaseBuild = "F#/Compile in release mode";
 		private const string MenuItemIsDebug = "F#/Show debug information";
 
+		private const string CSharpProject = "Assembly-CSharp.csproj";
+		private const string FSharpProject = "Assembly-FSharp.fsproj";
+		
 		private const string Version = "1.2.5";
 
 		private static readonly string[] IgnoredFiles = { "Assembly-FSharp.dll", "FSharp.Core.dll" };
@@ -53,6 +57,8 @@ namespace FSharpIntegration.Editor
 		}
 
 		private static void Print(string message) => UnityEngine.Debug.Log("F# : " + message);
+		private static void PrintWarning(string message) => UnityEngine.Debug.LogWarning("F# : " + message);
+		private static void PrintError(string message) => UnityEngine.Debug.LogError("F# : " + message);
 	
 		private static readonly Regex MatchReferences =
 			new Regex("<Reference Include=\"([^\"]+)\">\\s*<HintPath>([^<]+)<\\/HintPath>\\s*<\\/Reference>", RegexOptions.Compiled);
@@ -64,8 +70,9 @@ namespace FSharpIntegration.Editor
 			DotnetAvailable = CanExecuteCmd("dotnet", "--version");
 			if (!DotnetAvailable)
 			{
-				Print("dotnet was not found. Please install and ensure it is available from a terminal");
+				PrintWarning("dotnet was not found. Please install and ensure it is available from a terminal");
 			}
+			EditorApplication.playModeStateChanged += OnPlayModeStateChanged;
 			try
 			{
 				UnityEditor.Menu.SetChecked(MenuItemIsDebug, ShowDebugInfo);
@@ -76,28 +83,43 @@ namespace FSharpIntegration.Editor
 			catch (Exception) { }
 		}
 
+		private static void OnPlayModeStateChanged(PlayModeStateChange change)
+		{
+			if (change == PlayModeStateChange.EnteredPlayMode)
+			{
+				EditorApplication.ExitPlaymode();
+				try
+				{
+					Build();
+					EditorApplication.EnterPlaymode();
+				} 
+				catch (Exception e) {
+					UnityEngine.Debug.LogException(e);
+				}
+			}
+		}
+
+		private static void EnsureCSharpProjectExistance()
+		{
+			var dir = Directory.GetCurrentDirectory();
+			if (!File.Exists(Path.Combine(dir, CSharpProject))){
+				UnityEditor.EditorApplication.ExecuteMenuItem("Assets/Open C# Project");
+			}
+		}
+
 		[UnityEditor.MenuItem(MenuItemRecompile, false, 1)]
 		public static void InvokeCompiler()
 		{
 			if (_compiling)
 			{
-				Print("already compiling...");
+				PrintWarning("already compiling...");
 			}
 			else
 			{
 				_compiling = true;
 				try
 				{
-					var dir = Directory.GetCurrentDirectory();
-					var fsProjects = Directory.EnumerateFiles(dir, "*.fsproj", SearchOption.AllDirectories);
-					var releaseBuild = IsReleaseMode;
-					Print($"compiling in {(releaseBuild ? "release" : "debug")} mode..");
-					var references = ExtractUnityReferences(dir, releaseBuild);
-					foreach (var project in fsProjects)
-					{
-						UpdateReferences(project, references);
-						Compile(dir, project, releaseBuild);
-					}
+					Build();
 				} 
 				catch (Exception e) {
 					UnityEngine.Debug.LogException(e);
@@ -105,7 +127,21 @@ namespace FSharpIntegration.Editor
 				_compiling = false;
 			}
 		}
-	
+
+		private static void Build()
+		{
+			var dir = Directory.GetCurrentDirectory();
+			var fsProjects = Directory.EnumerateFiles(dir, "*.fsproj", SearchOption.AllDirectories);
+			var releaseBuild = IsReleaseMode;
+			Print($"compiling in {(releaseBuild ? "release" : "debug")} mode..");
+			var references = ExtractUnityReferences(dir, releaseBuild);
+			foreach (var project in fsProjects)
+			{
+				UpdateReferences(project, references);
+				Compile(dir, project, releaseBuild);
+			}
+		}
+		
 		[UnityEditor.MenuItem(MenuItemRecompile, true, 1)]
 		public static bool CanInvokeCompiler()
 		{
@@ -134,21 +170,21 @@ namespace FSharpIntegration.Editor
 		[UnityEditor.MenuItem(MenuItemOpenFSharpProject, false, 3)]
 		public static void OpenFSharpProject()
 		{
-			var fsProjectPath = Path.Combine(Directory.GetCurrentDirectory(), "Assembly-FSharp", "Assembly-FSharp.fsproj");
+			var fsProjectPath = Path.Combine(Directory.GetCurrentDirectory(), "Assembly-FSharp", FSharpProject);
 			if (File.Exists(fsProjectPath))
 			{
 				Process.Start(fsProjectPath);
 			}
 			else
 			{
-				Print("cannot find the F# project to open");
+				PrintError("cannot find the F# project to open");
 			}
 		}
 	
 		[UnityEditor.MenuItem(MenuItemOpenFSharpProject, true, 3)]
 		public static bool CanOpenFSharpProject()
 		{
-			var fsProjectPath = Path.Combine(Directory.GetCurrentDirectory(), "Assembly-FSharp", "Assembly-FSharp.fsproj");
+			var fsProjectPath = Path.Combine(Directory.GetCurrentDirectory(), "Assembly-FSharp", FSharpProject);
 			return File.Exists(fsProjectPath);
 		}
 	
@@ -179,77 +215,61 @@ namespace FSharpIntegration.Editor
 			ShowDebugInfo = !ShowDebugInfo;
 			UnityEditor.Menu.SetChecked(MenuItemIsDebug, ShowDebugInfo);
 		}
-
-		static void OnPostprocessAllAssets(string[] importedAssets, string[] deletedAssets, string[] movedAssets, string[] movedFromAssetPaths)
-		{
-			var fsAssets = importedAssets.Where(file => Path.GetExtension(file) == ".fs");
-			if (fsAssets.Any())
-			{
-				InvokeCompiler();
-			}
-		}
-
-
-		private static Lazy<UnityReferenceContainer> ExtractUnityReferences(string dir, bool releaseBuild)
-		{
-			return new Lazy<UnityReferenceContainer>(() =>
-			{
-				var started = DateTime.UtcNow;
-				var unityCsProjects = Directory.GetFiles(dir, "*.csproj", SearchOption.TopDirectoryOnly);
-				if (!unityCsProjects.Any()) throw new FileNotFoundException("No Unity projects to copy references from found. Please add a C# script, open it, and try again");
-			
-				var allReferences = new HashSet<UnityReference>();
-
-				foreach (var project in unityCsProjects)
-				{
-					var csProjectContent = File.ReadAllText(project);
-					var matches = MatchReferences.Matches(csProjectContent);
-					foreach (Match match in matches)
-					{
-						var include = match.Groups[1].Value;
-						var hintPath = match.Groups[2].Value;
-						if (IgnoredFiles.Any(file => hintPath.EndsWith(file))) continue;
-						allReferences.Add(new UnityReference(include, hintPath));
-					}
-				}
-
-
-				UnityReference csharpDllUnityReference = null;
-				if (ReferenceCSharpDll)
-				{
-					var csharpLibrary = Directory.GetFiles(dir, "Assembly-CSharp.dll", SearchOption.AllDirectories);
-					var mode = releaseBuild ? "Release" : "Debug";
-					var properLibrary = csharpLibrary.FirstOrDefault(dll => dll.Contains(mode)) ?? csharpLibrary.FirstOrDefault();
-					if (properLibrary != null)
-					{
-						csharpDllUnityReference = new UnityReference("Assembly-CSharp", properLibrary);
-					}
-				}
-
-				var unityEngine = allReferences.FirstOrDefault(r => r.Include == "UnityEngine");
-				var unityEditor = allReferences.FirstOrDefault(r => r.Include == "UnityEditor");
 		
-				allReferences.Remove(unityEngine);
-				allReferences.Remove(unityEditor);
-		
-				if (ShowDebugInfo) Print($"extracting references from Unity project took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
-				return new UnityReferenceContainer
-				{
-					UnityEngine = unityEngine,
-					UnityEditor = unityEditor,
-					CSharpDll = csharpDllUnityReference,
-					Additional = allReferences.ToList()
-				};
-			});
-		}
-	
-		private static void UpdateReferences(string project, Lazy<UnityReferenceContainer> lazyReferenceContainer)
+		private static UnityReferenceContainer ExtractUnityReferences(string dir, bool releaseBuild)
 		{
 			var started = DateTime.UtcNow;
-			var fsProjectContent = File.ReadAllText(project);
+			var unityCsProject = Path.Combine(dir, CSharpProject);
+			if (!File.Exists(unityCsProject))
+			{
+				throw new FileNotFoundException("No Unity projects to copy references from found. Please add a C# script, open it, and try again");
+			}
+			
+			var allReferences = new HashSet<UnityReference>();
+
+			var csProjectContent = File.ReadAllText(unityCsProject);
+			var matches = MatchReferences.Matches(csProjectContent);
+			foreach (Match match in matches)
+			{
+				var include = match.Groups[1].Value;
+				var hintPath = match.Groups[2].Value;
+				if (IgnoredFiles.Any(file => hintPath.EndsWith(file))) continue;
+				allReferences.Add(new UnityReference(include, hintPath));
+			}
+
+
+			UnityReference csharpDllUnityReference = null;
+			if (ReferenceCSharpDll)
+			{
+				var csharpLibrary = Directory.GetFiles(dir, "Assembly-CSharp.dll", SearchOption.AllDirectories);
+				var mode = releaseBuild ? "Release" : "Debug";
+				var properLibrary = csharpLibrary.FirstOrDefault(dll => dll.Contains(mode)) ?? csharpLibrary.FirstOrDefault();
+				if (properLibrary != null)
+				{
+					csharpDllUnityReference = new UnityReference("Assembly-CSharp", properLibrary);
+				}
+			}
+
+			var unityEngine = allReferences.FirstOrDefault(r => r.Include == "UnityEngine");
+			var unityEditor = allReferences.FirstOrDefault(r => r.Include == "UnityEditor");
 		
-			var references = lazyReferenceContainer.Value;
-			var fsProjectDocument = XDocument.Parse(fsProjectContent);
+			allReferences.Remove(unityEngine);
+			allReferences.Remove(unityEditor);
+		
+			if (ShowDebugInfo) Print($"extracting references from Unity project took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
+			return new UnityReferenceContainer
+			{
+				UnityEngine = unityEngine,
+				UnityEditor = unityEditor,
+				CSharpDll = csharpDllUnityReference,
+				Additional = allReferences.ToList()
+			};
+		}
+	
+		private static void UpdateReferences(string project, UnityReferenceContainer references)
+		{
+			var started = DateTime.UtcNow;
+			var fsProjectDocument = XDocument.Load(project);
 		
 			// Remove existing references
 			fsProjectDocument
@@ -270,9 +290,9 @@ namespace FSharpIntegration.Editor
 					csharpReferenceGroup.Add(references.CSharpDll.ToXElement());
 					fsProjectDocument.Root.Add(csharpReferenceGroup);
 				}
-				else if (ShowDebugInfo)
+				else
 				{
-					Print("no C# project dll was found to reference");
+					PrintError("no C# project dll was found to reference. Please create a C# script and open it, to have Unity generate a C# project");
 				}
 			}
 		
@@ -291,6 +311,7 @@ namespace FSharpIntegration.Editor
 			if (ShowDebugInfo) Print($"adding references to '{Path.GetFileNameWithoutExtension(project)}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
 		}
 	
+		private static readonly Regex FileErrorRegex = new Regex("\\.fs\\((\\d{1,7}),(\\d{1,7})\\)", RegexOptions.Compiled);
 		private static readonly Regex TargetFrameworkRegex = new Regex("<TargetFramework>([^<]+)<\\/TargetFramework>", RegexOptions.Compiled);
 		private static void Compile(string unityRoot, string project, bool releaseMode)
 		{
@@ -302,7 +323,7 @@ namespace FSharpIntegration.Editor
 			var match = TargetFrameworkRegex.Match(fsProjContent);
 			if (!match.Success)
 			{
-				Print($"could not parse the TargetFramework in {Path.GetFileName(project)}");
+				PrintError($"could not parse the TargetFramework in {Path.GetFileName(project)}");
 				return;
 			}
 
@@ -323,7 +344,7 @@ namespace FSharpIntegration.Editor
 
 			if (!compileRequired && !copyRequired)
 			{
-				Print($"'{projectName}' is already up-to-date");
+				Print($"<color=green>'{projectName}' is already up-to-date</color>");
 				return;
 			}
 
@@ -331,24 +352,34 @@ namespace FSharpIntegration.Editor
 			if (compileRequired)
 			{
 				started = DateTime.UtcNow;
-
-				var success = ExecuteCmd("dotnet", $"build \"{project}\" --no-dependencies --configuration {configuration} --verbosity quiet --output \"{projectBuildDir}\"");
-			
-				if (!success.Item1)
+				var arg =
+					$"build \"{project}\" --no-dependencies --configuration {configuration} --verbosity quiet --output \"{projectBuildDir}\"";
+				var (success, trimmedErrors) = ExecuteCmd("dotnet", arg);
+				if (!success)
 				{
-					Print($"compilation using dotnet failed:\n{success.Item2}");
+					var errorLines = trimmedErrors.Split('\n').Skip(3).Select(s =>
+					{
+						var fileMatch = FileErrorRegex.Match(s);
+						if (fileMatch.Success)
+						{
+							var filename = Path.GetFileNameWithoutExtension(s.Substring(0, fileMatch.Index + 3)) + fileMatch.Value;
+							s = filename + s.Substring(fileMatch.Index + fileMatch.Length);
+						}
+						var index = s.LastIndexOf('[');
+						return index == -1 ? s : s.Substring(0, index - 1);
+					});
+					trimmedErrors = string.Join("\n", errorLines);
+					PrintError($"compilation using dotnet failed:\n{trimmedErrors}");
 					return;
 				}
-			
 				if (ShowDebugInfo) Print($"compilation of '{projectName}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms");
-				
 			}
 		
 			started = DateTime.UtcNow;
-			File.Copy(projectDllBuildPath,projectDllAssetPath, true);
+			File.Copy(projectDllBuildPath, projectDllAssetPath, true);
 			Print(ShowDebugInfo
-				? $"copying '{projectDllFilename}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms"
-				: $"compilation of '{projectName}' completed");
+				? $"<color=green>copying '{projectDllFilename}' took {DateTime.UtcNow.Subtract(started).TotalMilliseconds:F2}ms</color>"
+				: $"<color=green>compilation of '{projectName}' completed</color>");
 		}
 
 		private static bool CanExecuteCmd(string cmd, string args)
